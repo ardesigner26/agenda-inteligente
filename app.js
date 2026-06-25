@@ -282,15 +282,15 @@ function parseLine(line, sourceName) {
   const datePatterns = [
     /\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b/,
     /\b(\d{4})-(\d{1,2})-(\d{1,2})\b/,
-    /\bdia\s+(\d{1,2})\b/i,
-    /\b(\d{1,2})\s+de\s+(janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/i,
+    /\b(?:dia\s+)?(\d{1,2})\s+de\s+(janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/i,
+    /\bdia\s+(\d{1,2})(?!\s+de\s+(?:janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro))\b/i,
     /\b(\d{1,2})(?=\s*,?\s+(?:as|às|@|\d{1,2}\s*(?:h|horas?|hrs?)))\b/i,
   ];
 
   const brDate = line.match(datePatterns[0]);
   const isoDate = line.match(datePatterns[1]);
-  const dayOnlyDate = line.match(datePatterns[2]);
-  const monthNameDate = line.match(datePatterns[3]);
+  const monthNameDate = line.match(datePatterns[2]);
+  const dayOnlyDate = line.match(datePatterns[3]);
   const contextualDayDate = line.match(datePatterns[4]);
 
   if (brDate) {
@@ -302,12 +302,12 @@ function parseLine(line, sourceName) {
   } else if (isoDate) {
     date = new Date(Number(isoDate[1]), Number(isoDate[2]) - 1, Number(isoDate[3]));
     title = title.replace(isoDate[0], "").trim();
-  } else if (dayOnlyDate) {
-    date = dateFromDayOfMonth(Number(dayOnlyDate[1]), base);
-    title = title.replace(dayOnlyDate[0], "").trim();
   } else if (monthNameDate) {
     date = dateFromDayAndMonthName(Number(monthNameDate[1]), monthNameDate[2], base);
     title = title.replace(monthNameDate[0], "").trim();
+  } else if (dayOnlyDate) {
+    date = dateFromDayOfMonth(Number(dayOnlyDate[1]), base);
+    title = title.replace(dayOnlyDate[0], "").trim();
   } else if (contextualDayDate) {
     date = dateFromDayOfMonth(Number(contextualDayDate[1]), base);
     title = title.replace(contextualDayDate[0], "").trim();
