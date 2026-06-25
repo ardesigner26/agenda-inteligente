@@ -283,11 +283,15 @@ function parseLine(line, sourceName) {
     /\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b/,
     /\b(\d{4})-(\d{1,2})-(\d{1,2})\b/,
     /\bdia\s+(\d{1,2})\b/i,
+    /\b(\d{1,2})\s+de\s+(janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/i,
+    /\b(\d{1,2})(?=\s*,?\s+(?:as|às|@|\d{1,2}\s*(?:h|horas?|hrs?)))\b/i,
   ];
 
   const brDate = line.match(datePatterns[0]);
   const isoDate = line.match(datePatterns[1]);
   const dayOnlyDate = line.match(datePatterns[2]);
+  const monthNameDate = line.match(datePatterns[3]);
+  const contextualDayDate = line.match(datePatterns[4]);
 
   if (brDate) {
     const day = Number(brDate[1]);
@@ -301,6 +305,12 @@ function parseLine(line, sourceName) {
   } else if (dayOnlyDate) {
     date = dateFromDayOfMonth(Number(dayOnlyDate[1]), base);
     title = title.replace(dayOnlyDate[0], "").trim();
+  } else if (monthNameDate) {
+    date = dateFromDayAndMonthName(Number(monthNameDate[1]), monthNameDate[2], base);
+    title = title.replace(monthNameDate[0], "").trim();
+  } else if (contextualDayDate) {
+    date = dateFromDayOfMonth(Number(contextualDayDate[1]), base);
+    title = title.replace(contextualDayDate[0], "").trim();
   } else {
     const lower = normalizeText(line);
     if (/\bhoje\b/.test(lower)) {
@@ -840,6 +850,30 @@ function dateFromDayOfMonth(day, base) {
   let candidate = new Date(base.getFullYear(), base.getMonth(), day);
   if (candidate < base) {
     candidate = new Date(base.getFullYear(), base.getMonth() + 1, day);
+  }
+  return candidate;
+}
+
+function dateFromDayAndMonthName(day, monthName, base) {
+  const months = {
+    janeiro: 0,
+    fevereiro: 1,
+    marco: 2,
+    março: 2,
+    abril: 3,
+    maio: 4,
+    junho: 5,
+    julho: 6,
+    agosto: 7,
+    setembro: 8,
+    outubro: 9,
+    novembro: 10,
+    dezembro: 11,
+  };
+  const month = months[normalizeText(monthName)];
+  let candidate = new Date(base.getFullYear(), month, day);
+  if (candidate < base) {
+    candidate = new Date(base.getFullYear() + 1, month, day);
   }
   return candidate;
 }
