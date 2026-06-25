@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#2f7d5c" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Agenda" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <title>Agenda Inteligente</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="workspace">
+        <aside class="sidebar" aria-label="Painel de importacao">
+          <div class="brand">
+            <div class="brand-mark" aria-hidden="true">A</div>
+            <div>
+              <h1>Agenda</h1>
+              <p>Notas viram compromissos organizados.</p>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-heading">
+              <h2>Adicionar nota</h2>
+              <span id="parseStatus" class="status">Pronto</span>
+            </div>
+            <textarea
+              id="noteInput"
+              spellcheck="true"
+              placeholder="Ex.: Dentista dia 30/06 as 14h&#10;Reuniao com Ana amanha 9:30&#10;Pagar aluguel 05/07"
+            ></textarea>
+            <div class="actions">
+              <button id="parseButton" class="primary" type="button">Organizar</button>
+              <label class="file-button">
+                Importar arquivo
+                <input id="fileInput" type="file" accept=".txt,.md,.csv,text/plain,text/markdown" />
+              </label>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-heading">
+              <h2>Ponte iCloud</h2>
+              <span id="bridgeStatus" class="status">Opcional</span>
+            </div>
+            <p class="muted">
+              Exporte suas notas para um arquivo de texto em uma pasta sincronizada pelo iCloud Drive e importe aqui.
+            </p>
+            <button id="watchFileButton" type="button">Selecionar arquivo sincronizado</button>
+            <p id="bridgeHint" class="hint"></p>
+          </div>
+
+          <div class="panel">
+            <div class="panel-heading">
+              <h2>App</h2>
+              <span id="appStatus" class="status">Offline</span>
+            </div>
+            <div class="app-actions">
+              <button id="installButton" type="button">Instalar app</button>
+              <button id="exportBackupButton" type="button">Exportar backup</button>
+              <label class="file-button">
+                Importar backup
+                <input id="backupInput" type="file" accept="application/json,.json" />
+              </label>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-heading">
+              <h2>Alarmes</h2>
+              <span id="notificationStatus" class="status">Local</span>
+            </div>
+            <p class="muted">
+              O app pode mostrar avisos enquanto estiver aberto. Ative som e notificacoes para alertas mais fortes.
+            </p>
+            <div class="alarm-actions">
+              <button id="soundButton" type="button">Ativar som</button>
+              <button id="notificationButton" type="button">Ativar notificacoes</button>
+            </div>
+            <div class="alarm-customizer">
+              <label>
+                Visual do alarme
+                <select id="alarmThemeSelect">
+                  <option value="ios-light">iOS claro</option>
+                  <option value="android-dark">Android escuro</option>
+                  <option value="aura-gold">Dourado suave</option>
+                  <option value="focus-clean">Minimalista</option>
+                </select>
+              </label>
+              <label>
+                Cor de destaque
+                <input id="alarmAccentInput" type="color" value="#14a89e" />
+              </label>
+            </div>
+          </div>
+
+          <div class="panel compact">
+            <h2>Resumo</h2>
+            <dl class="stats">
+              <div>
+                <dt>Hoje</dt>
+                <dd id="todayCount">0</dd>
+              </div>
+              <div>
+                <dt>Proximos 7 dias</dt>
+                <dd id="weekCount">0</dd>
+              </div>
+              <div>
+                <dt>Total</dt>
+                <dd id="totalCount">0</dd>
+              </div>
+              <div>
+                <dt>Com alarme</dt>
+                <dd id="alarmCount">0</dd>
+              </div>
+            </dl>
+          </div>
+        </aside>
+
+        <section class="agenda" aria-label="Agenda organizada">
+          <header class="topbar">
+            <div>
+              <p id="todayLabel" class="eyebrow"></p>
+              <h2 id="monthLabel">Compromissos</h2>
+            </div>
+            <div class="month-controls" aria-label="Navegacao do calendario">
+              <button id="prevMonth" type="button" title="Mes anterior" aria-label="Mes anterior">‹</button>
+              <button id="todayButton" type="button">Hoje</button>
+              <button id="nextMonth" type="button" title="Proximo mes" aria-label="Proximo mes">›</button>
+            </div>
+          </header>
+
+          <div class="content-grid">
+            <section class="calendar-panel">
+              <div class="calendar-weekdays" aria-hidden="true">
+                <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sab</span>
+              </div>
+              <div id="calendarGrid" class="calendar-grid"></div>
+            </section>
+
+            <section class="day-panel">
+              <div class="day-header">
+                <div>
+                  <p class="eyebrow">Data selecionada</p>
+                  <h3 id="selectedDateLabel"></h3>
+                </div>
+                <button id="clearDoneButton" type="button">Limpar concluidos</button>
+              </div>
+              <div id="eventList" class="event-list"></div>
+            </section>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="editDialog">
+      <form method="dialog" id="editForm" class="dialog-card">
+        <h2>Editar compromisso</h2>
+        <label>
+          Titulo
+          <input id="editTitle" name="title" required />
+        </label>
+        <div class="form-row">
+          <label>
+            Data
+            <input id="editDate" name="date" type="date" required />
+          </label>
+          <label>
+            Hora
+            <input id="editTime" name="time" type="time" />
+          </label>
+        </div>
+        <label>
+          Lembrete
+          <select id="editReminder" name="reminder">
+            <option value="">Sem alarme</option>
+            <option value="0">Na hora</option>
+            <option value="5">5 minutos antes</option>
+            <option value="10">10 minutos antes</option>
+            <option value="15">15 minutos antes</option>
+            <option value="30">30 minutos antes</option>
+            <option value="60">1 hora antes</option>
+            <option value="120">2 horas antes</option>
+            <option value="1440">1 dia antes</option>
+          </select>
+        </label>
+        <label>
+          Origem
+          <textarea id="editSource" name="source" rows="3"></textarea>
+        </label>
+        <div class="dialog-actions">
+          <button id="deleteEventButton" class="danger" type="button">Excluir</button>
+          <span></span>
+          <button value="cancel" type="submit">Cancelar</button>
+          <button id="saveEventButton" class="primary" value="default" type="submit">Salvar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toastStack" class="toast-stack" aria-live="polite"></div>
+
+    <section id="alarmOverlay" class="alarm-overlay" aria-live="assertive" aria-modal="true" role="dialog" hidden>
+      <div class="alarm-screen">
+        <div class="alarm-topline">
+          <span class="alarm-badge" aria-hidden="true">
+            <span class="mini-bell"></span>
+          </span>
+          <p class="alarm-kicker">Alarme de compromisso</p>
+          <button id="closeAlarmButton" class="alarm-close" type="button" aria-label="Desligar alarme">x</button>
+        </div>
+        <div class="alarm-hero" aria-hidden="true">
+          <span class="alarm-ring ring-one"></span>
+          <span class="alarm-ring ring-two"></span>
+          <span class="alarm-bell"></span>
+        </div>
+        <h2 id="alarmTitle">Compromisso</h2>
+        <div class="alarm-date-row">
+          <span id="alarmDateChip"></span>
+          <span aria-hidden="true">|</span>
+          <span id="alarmHourChip"></span>
+        </div>
+        <p id="alarmSource" class="alarm-source"></p>
+        <div class="alarm-main-actions">
+          <button id="dismissAlarmButton" class="primary alarm-stop" type="button">
+            <span class="stop-icon" aria-hidden="true"></span>
+            <span>
+              <strong>Desligar alarme</strong>
+              <small>Parar e manter o compromisso</small>
+            </span>
+          </button>
+        </div>
+        <div class="snooze-heading">
+          <span></span>
+          <strong>Repetir alarme</strong>
+          <span></span>
+        </div>
+        <div class="snooze-actions" aria-label="Repetir alarme">
+          <button type="button" data-snooze="5"><span class="snooze-icon" aria-hidden="true"></span><span><strong>Repetir em 5 min</strong><small>O alarme tocara novamente em 5 min</small></span><i aria-hidden="true">›</i></button>
+          <button type="button" data-snooze="10"><span class="snooze-icon" aria-hidden="true"></span><span><strong>10 minutos</strong><small>O alarme tocara novamente em 10 min</small></span><i aria-hidden="true">›</i></button>
+          <button type="button" data-snooze="15"><span class="snooze-icon hourglass" aria-hidden="true"></span><span><strong>15 minutos</strong><small>O alarme tocara novamente em 15 min</small></span><i aria-hidden="true">›</i></button>
+        </div>
+        <p class="alarm-footnote">O alarme so para quando voce desligar ou escolher uma repeticao.</p>
+      </div>
+    </section>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
