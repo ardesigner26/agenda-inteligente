@@ -282,10 +282,12 @@ function parseLine(line, sourceName) {
   const datePatterns = [
     /\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b/,
     /\b(\d{4})-(\d{1,2})-(\d{1,2})\b/,
+    /\bdia\s+(\d{1,2})\b/i,
   ];
 
   const brDate = line.match(datePatterns[0]);
   const isoDate = line.match(datePatterns[1]);
+  const dayOnlyDate = line.match(datePatterns[2]);
 
   if (brDate) {
     const day = Number(brDate[1]);
@@ -296,6 +298,9 @@ function parseLine(line, sourceName) {
   } else if (isoDate) {
     date = new Date(Number(isoDate[1]), Number(isoDate[2]) - 1, Number(isoDate[3]));
     title = title.replace(isoDate[0], "").trim();
+  } else if (dayOnlyDate) {
+    date = dateFromDayOfMonth(Number(dayOnlyDate[1]), base);
+    title = title.replace(dayOnlyDate[0], "").trim();
   } else {
     const lower = normalizeText(line);
     if (/\bhoje\b/.test(lower)) {
@@ -315,8 +320,11 @@ function parseLine(line, sourceName) {
 
   if (!date || Number.isNaN(date.getTime())) return null;
 
-  const timeMatch = line.match(/\b(?:as|às|@)?\s*(\d{1,2})(?::|h)(\d{2})?\b/i);
-  const time = timeMatch ? `${String(timeMatch[1]).padStart(2, "0")}:${timeMatch[2] || "00"}` : "";
+  const timeMatch = line.match(
+    /\b(?:(?:as|às|@)\s*(\d{1,2})(?::(\d{2}))?\s*(?:horas?|hrs?)?(?:\s*da\s*(manha|manhã|tarde|noite))?|(\d{1,2})(?::|h)(\d{2})?\s*(?:da\s*(manha|manhã|tarde|noite))?|(\d{1,2})\s*(?:horas?|hrs?)\s*(?:da\s*(manha|manhã|tarde|noite))?)\b/i
+  );
+  const parsedTime = timeMatch ? normalizeTimeMatch(timeMatch) : null;
+  const time = parsedTime || "";
   if (timeMatch) title = title.replace(timeMatch[0], "").trim();
 
   title = title
@@ -324,6 +332,7 @@ function parseLine(line, sourceName) {
     .replace(/\balarme\s+(?=\d+\s*(?:min|mins|minuto|minutos|h|hora|horas|dia|dias)\s*antes|na hora)/gi, " ")
     .replace(/\b\d+\s*(?:min|mins|minuto|minutos|h|hora|horas|dia|dias)\s*antes\b/gi, " ")
     .replace(/\bna hora\b/gi, " ")
+    .replace(/\b(horas?|hrs?)\b/gi, " ")
     .replace(/\b(dia|em|para|no|na|as|às)\b/gi, " ")
     .replace(/\s{2,}/g, " ")
     .replace(/^[,.;:-]+|[,.;:-]+$/g, "")
@@ -825,6 +834,31 @@ function toDateInput(date) {
 function fromDateInput(value) {
   const [year, month, day] = value.split("-").map(Number);
   return new Date(year, month - 1, day);
+}
+
+function dateFromDayOfMonth(day, base) {
+  let candidate = new Date(base.getFullYear(), base.getMonth(), day);
+  if (candidate < base) {
+    candidate = new Date(base.getFullYear(), base.getMonth() + 1, day);
+  }
+  return candidate;
+}
+
+function normalizeTimeMatch(match) {
+  const hour = Number(match[1] || match[4] || match[7]);
+  const minutes = match[2] || match[5] || "00";
+  const period = normalizeText(match[3] || match[6] || match[8] || "");
+  let normalizedHour = hour;
+
+  if (period === "tarde" || period === "noite") {
+    normalizedHour = hour < 12 ? hour + 12 : hour;
+  }
+  if (period === "manha" && hour === 12) {
+    normalizedHour = 0;
+  }
+
+  if (normalizedHour > 23 || Number(minutes) > 59) return "";
+  return `${String(normalizedHour).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
 function normalizeYear(year) {

@@ -50,11 +50,12 @@ O iCloud Notes nao oferece uma API publica simples para um app web no Windows le
 Formatos reconhecidos nesta primeira versao:
 
 - `dd/mm` e `dd/mm/aaaa`
+- `dia 27`, usando o mes atual quando a data ainda nao passou
 - `aaaa-mm-dd`
 - `hoje`
 - `amanha`
 - dias da semana, como `segunda`, `terca-feira`, `sexta`
-- horarios como `14h`, `14h30` e `09:30`
+- horarios como `14h`, `14h30`, `09:30`, `as 10`, `19 horas` e `7 da noite`
 - lembretes como `15 min antes`, `1 hora antes`, `2 horas antes`, `1 dia antes` e `na hora`
 
 Exemplos com alarme:
