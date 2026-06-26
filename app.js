@@ -95,6 +95,7 @@ applySyncSettings();
 updateNotificationStatus();
 registerServiceWorker();
 startAutoSync();
+syncNow({ quiet: true });
 window.setInterval(checkReminders, 15000);
 checkReminders();
 
