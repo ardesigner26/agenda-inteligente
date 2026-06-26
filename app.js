@@ -1,3 +1,11 @@
+const DEFAULT_SYNC_SETTINGS = {
+  url: "https://gwvjymtvbkaddkgwrqaa.supabase.co",
+  key: "sb_publishable_Om5nmYdB946b0YgNtcpQ6g_9aj534m4",
+  calendarId: "familia",
+  enabled: true,
+  lastSyncedAt: "",
+};
+
 const state = {
   events: loadEvents(),
   visibleDate: startOfMonth(new Date()),
@@ -596,16 +604,17 @@ function importBackup(backup) {
 
 function loadSyncSettings() {
   try {
+    const saved = JSON.parse(localStorage.getItem("smart-agenda-sync-settings") || "{}");
     return {
-      url: "",
-      key: "",
-      calendarId: "",
-      enabled: false,
-      lastSyncedAt: "",
-      ...JSON.parse(localStorage.getItem("smart-agenda-sync-settings") || "{}"),
+      ...DEFAULT_SYNC_SETTINGS,
+      ...saved,
+      url: saved.url || DEFAULT_SYNC_SETTINGS.url,
+      key: saved.key || DEFAULT_SYNC_SETTINGS.key,
+      calendarId: saved.calendarId || DEFAULT_SYNC_SETTINGS.calendarId,
+      enabled: saved.enabled ?? DEFAULT_SYNC_SETTINGS.enabled,
     };
   } catch {
-    return { url: "", key: "", calendarId: "", enabled: false, lastSyncedAt: "" };
+    return { ...DEFAULT_SYNC_SETTINGS };
   }
 }
 
@@ -648,7 +657,7 @@ function scheduleSync() {
 async function syncNow(options = {}) {
   if (!isSyncConfigured()) {
     updateSyncStatus("Desligada");
-    if (!options.quiet) showToast("Sincronizacao nao configurada.", "Preencha URL, chave anon e ID da agenda.");
+    if (!options.quiet) showToast("Sincronizacao nao configurada.", "Preencha URL, chave publica e ID da agenda.");
     return;
   }
 
