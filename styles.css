@@ -1109,11 +1109,24 @@ body[data-alarm-theme="android-dark"] .snooze-actions button {
   }
 
   .day-cell {
-    min-height: 82px;
-    padding: 6px;
+    min-height: 96px;
+    padding: 6px 5px;
+    gap: 5px;
   }
 
   .event-chip {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 5px;
+    padding: 3px 4px;
+    font-size: 10px;
+    line-height: 1.15;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .day-cell .event-chip:nth-of-type(n + 3) {
     display: none;
   }
 

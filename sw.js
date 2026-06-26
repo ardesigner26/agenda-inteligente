@@ -1,4 +1,4 @@
-const CACHE_NAME = "agenda-inteligente-v7";
+const CACHE_NAME = "agenda-inteligente-v8";
 const APP_ASSETS = [
   "./",
   "./index.html",
