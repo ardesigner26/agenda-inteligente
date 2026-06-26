@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
-    <link rel="stylesheet" href="./styles.css?v=20260625-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260626-sync2" />
   </head>
   <body>
     <main class="shell">
@@ -69,6 +69,32 @@
                 <input id="backupInput" type="file" accept="application/json,.json" />
               </label>
             </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-heading">
+              <h2>Sincronizacao</h2>
+              <span id="syncStatus" class="status">Desligada</span>
+            </div>
+            <div class="sync-form">
+              <label>
+                URL do Supabase
+                <input id="syncUrlInput" type="url" placeholder="https://xxxx.supabase.co" />
+              </label>
+              <label>
+                Chave publica anon
+                <input id="syncKeyInput" type="password" autocomplete="off" placeholder="eyJ..." />
+              </label>
+              <label>
+                ID da agenda compartilhada
+                <input id="syncCalendarInput" type="text" placeholder="familia-agenda" />
+              </label>
+            </div>
+            <div class="sync-actions">
+              <button id="saveSyncButton" type="button">Salvar sync</button>
+              <button id="syncNowButton" type="button">Sincronizar agora</button>
+            </div>
+            <p id="syncHint" class="hint">Use os mesmos dados em todos os aparelhos que vao compartilhar a agenda.</p>
           </div>
 
           <div class="panel">
@@ -249,6 +275,6 @@
       </div>
     </section>
 
-    <script src="./app.js?v=20260625-4"></script>
+    <script src="./app.js?v=20260626-sync2"></script>
   </body>
 </html>

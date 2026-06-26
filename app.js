@@ -10,6 +10,11 @@ const state = {
   soundTimer: null,
   vibrationTimer: null,
   alarmSettings: loadAlarmSettings(),
+  syncSettings: loadSyncSettings(),
+  syncTimer: null,
+  pendingSyncTimer: null,
+  isApplyingRemote: false,
+  deletedEvents: loadDeletedEvents(),
   deferredInstallPrompt: null,
 };
 
@@ -25,6 +30,13 @@ const els = {
   installButton: document.querySelector("#installButton"),
   exportBackupButton: document.querySelector("#exportBackupButton"),
   backupInput: document.querySelector("#backupInput"),
+  syncStatus: document.querySelector("#syncStatus"),
+  syncUrlInput: document.querySelector("#syncUrlInput"),
+  syncKeyInput: document.querySelector("#syncKeyInput"),
+  syncCalendarInput: document.querySelector("#syncCalendarInput"),
+  saveSyncButton: document.querySelector("#saveSyncButton"),
+  syncNowButton: document.querySelector("#syncNowButton"),
+  syncHint: document.querySelector("#syncHint"),
   todayLabel: document.querySelector("#todayLabel"),
   monthLabel: document.querySelector("#monthLabel"),
   prevMonth: document.querySelector("#prevMonth"),
@@ -71,8 +83,10 @@ const fullDateFormatter = new Intl.DateTimeFormat("pt-BR", {
 
 render();
 applyAlarmSettings();
+applySyncSettings();
 updateNotificationStatus();
 registerServiceWorker();
+startAutoSync();
 window.setInterval(checkReminders, 15000);
 checkReminders();
 
@@ -133,6 +147,7 @@ els.todayButton.addEventListener("click", () => {
 });
 
 els.clearDoneButton.addEventListener("click", () => {
+  state.events.filter((event) => event.done).forEach((event) => markDeleted(event.id));
   state.events = state.events.filter((event) => !event.done);
   persist();
   render();
@@ -168,6 +183,24 @@ els.backupInput.addEventListener("change", async (event) => {
   } finally {
     event.target.value = "";
   }
+});
+
+els.saveSyncButton.addEventListener("click", async () => {
+  state.syncSettings = {
+    url: els.syncUrlInput.value.trim().replace(/\/+$/, ""),
+    key: els.syncKeyInput.value.trim(),
+    calendarId: normalizeCalendarId(els.syncCalendarInput.value),
+    enabled: true,
+    lastSyncedAt: state.syncSettings.lastSyncedAt || "",
+  };
+  saveSyncSettings();
+  applySyncSettings();
+  startAutoSync();
+  await syncNow();
+});
+
+els.syncNowButton.addEventListener("click", async () => {
+  await syncNow();
 });
 
 els.soundButton.addEventListener("click", async () => {
@@ -232,12 +265,14 @@ els.editForm.addEventListener("submit", (event) => {
   item.reminderMinutes = normalizeReminder(els.editReminder.value);
   item.reminderNotifiedAt = "";
   item.source = els.editSource.value.trim();
+  item.updatedAt = new Date().toISOString();
   persist();
   els.editDialog.close();
   render();
 });
 
 els.deleteEventButton.addEventListener("click", () => {
+  markDeleted(state.editingId);
   state.events = state.events.filter((entry) => entry.id !== state.editingId);
   persist();
   els.editDialog.close();
@@ -359,6 +394,7 @@ function parseLine(line, sourceName) {
     source: `${sourceName}: ${line}`,
     done: false,
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 }
 
@@ -429,6 +465,7 @@ function renderEvents() {
     checkbox.setAttribute("aria-label", "Marcar como concluido");
     checkbox.addEventListener("change", () => {
       event.done = checkbox.checked;
+      event.updatedAt = new Date().toISOString();
       persist();
       render();
     });
@@ -504,6 +541,8 @@ function eventKey(event) {
 
 function persist() {
   localStorage.setItem("smart-agenda-events", JSON.stringify(state.events));
+  saveDeletedEvents();
+  scheduleSync();
 }
 
 function exportBackup() {
@@ -512,7 +551,13 @@ function exportBackup() {
     version: 1,
     exportedAt: new Date().toISOString(),
     events: state.events,
+    deletedEvents: state.deletedEvents,
     alarmSettings: state.alarmSettings,
+    syncSettings: {
+      url: state.syncSettings.url,
+      calendarId: state.syncSettings.calendarId,
+      enabled: state.syncSettings.enabled,
+    },
   };
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -531,8 +576,11 @@ function importBackup(backup) {
     reminderMinutes: "",
     reminderNotifiedAt: "",
     snoozedUntil: "",
+    updatedAt: event.updatedAt || event.createdAt || new Date().toISOString(),
     ...event,
   }));
+  state.deletedEvents = backup.deletedEvents || {};
+  saveDeletedEvents();
   if (backup.alarmSettings) {
     state.alarmSettings = {
       theme: "ios-light",
@@ -544,6 +592,182 @@ function importBackup(backup) {
   }
   persist();
   render();
+}
+
+function loadSyncSettings() {
+  try {
+    return {
+      url: "",
+      key: "",
+      calendarId: "",
+      enabled: false,
+      lastSyncedAt: "",
+      ...JSON.parse(localStorage.getItem("smart-agenda-sync-settings") || "{}"),
+    };
+  } catch {
+    return { url: "", key: "", calendarId: "", enabled: false, lastSyncedAt: "" };
+  }
+}
+
+function saveSyncSettings() {
+  localStorage.setItem("smart-agenda-sync-settings", JSON.stringify(state.syncSettings));
+}
+
+function applySyncSettings() {
+  els.syncUrlInput.value = state.syncSettings.url || "";
+  els.syncKeyInput.value = state.syncSettings.key || "";
+  els.syncCalendarInput.value = state.syncSettings.calendarId || "";
+  updateSyncStatus(isSyncConfigured() ? "Pronta" : "Desligada");
+}
+
+function isSyncConfigured() {
+  return Boolean(state.syncSettings.enabled && state.syncSettings.url && state.syncSettings.key && state.syncSettings.calendarId);
+}
+
+function updateSyncStatus(label) {
+  els.syncStatus.textContent = label;
+}
+
+function normalizeCalendarId(value) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+function startAutoSync() {
+  if (state.syncTimer) window.clearInterval(state.syncTimer);
+  if (!isSyncConfigured()) return;
+  state.syncTimer = window.setInterval(() => syncNow({ quiet: true }), 30000);
+  window.addEventListener("focus", () => syncNow({ quiet: true }));
+}
+
+function scheduleSync() {
+  if (state.isApplyingRemote || !isSyncConfigured()) return;
+  if (state.pendingSyncTimer) window.clearTimeout(state.pendingSyncTimer);
+  state.pendingSyncTimer = window.setTimeout(() => syncNow({ quiet: true }), 1200);
+}
+
+async function syncNow(options = {}) {
+  if (!isSyncConfigured()) {
+    updateSyncStatus("Desligada");
+    if (!options.quiet) showToast("Sincronizacao nao configurada.", "Preencha URL, chave anon e ID da agenda.");
+    return;
+  }
+
+  updateSyncStatus("Sincronizando");
+  try {
+    const remote = await fetchCloudAgenda();
+    const merged = mergeCloudPayload(remote?.payload);
+    state.isApplyingRemote = true;
+    state.events = merged.events.sort(compareEvents);
+    state.deletedEvents = merged.deletedEvents;
+    persist();
+    state.isApplyingRemote = false;
+    await pushCloudAgenda();
+    state.syncSettings.lastSyncedAt = new Date().toISOString();
+    saveSyncSettings();
+    updateSyncStatus("Sincronizada");
+    render();
+    if (!options.quiet) showToast("Agenda sincronizada.", "Os compromissos foram atualizados na nuvem.");
+  } catch (error) {
+    state.isApplyingRemote = false;
+    updateSyncStatus("Erro");
+    if (!options.quiet) showToast("Erro de sincronizacao.", error.message || "Confira os dados do Supabase.");
+  }
+}
+
+async function fetchCloudAgenda() {
+  const url = `${syncBaseUrl()}/rest/v1/agenda_sync?calendar_id=eq.${encodeURIComponent(state.syncSettings.calendarId)}&select=payload,updated_at`;
+  const response = await fetch(url, { headers: syncHeaders() });
+  if (!response.ok) throw new Error("Nao foi possivel ler a agenda na nuvem.");
+  const rows = await response.json();
+  return rows[0] || null;
+}
+
+async function pushCloudAgenda() {
+  const url = `${syncBaseUrl()}/rest/v1/agenda_sync?on_conflict=calendar_id`;
+  const body = {
+    calendar_id: state.syncSettings.calendarId,
+    payload: {
+      events: state.events,
+      deletedEvents: state.deletedEvents,
+      savedAt: new Date().toISOString(),
+    },
+    updated_at: new Date().toISOString(),
+  };
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { ...syncHeaders(), Prefer: "resolution=merge-duplicates" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error("Nao foi possivel enviar a agenda para a nuvem.");
+}
+
+function syncBaseUrl() {
+  return state.syncSettings.url.replace(/\/+$/, "");
+}
+
+function syncHeaders() {
+  return {
+    apikey: state.syncSettings.key,
+    Authorization: `Bearer ${state.syncSettings.key}`,
+    "Content-Type": "application/json",
+  };
+}
+
+function mergeCloudPayload(payload) {
+  const remoteEvents = Array.isArray(payload?.events) ? payload.events : [];
+  const deletedEvents = { ...state.deletedEvents, ...(payload?.deletedEvents || {}) };
+  const byId = new Map();
+
+  for (const event of [...remoteEvents, ...state.events]) {
+    if (!event?.id) continue;
+    const normalized = normalizeEventRecord(event);
+    const deletedAt = deletedEvents[normalized.id];
+    if (deletedAt && new Date(deletedAt) >= new Date(eventTimestamp(normalized))) continue;
+    const current = byId.get(normalized.id);
+    if (!current || new Date(eventTimestamp(normalized)) >= new Date(eventTimestamp(current))) {
+      byId.set(normalized.id, normalized);
+    }
+  }
+
+  return {
+    events: Array.from(byId.values()).filter((event) => !deletedEvents[event.id]),
+    deletedEvents,
+  };
+}
+
+function normalizeEventRecord(event) {
+  const timestamp = event.updatedAt || event.createdAt || new Date().toISOString();
+  return {
+    reminderMinutes: "",
+    reminderNotifiedAt: "",
+    snoozedUntil: "",
+    done: false,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    ...event,
+  };
+}
+
+function eventTimestamp(event) {
+  return event.updatedAt || event.createdAt || "1970-01-01T00:00:00.000Z";
+}
+
+function markDeleted(id) {
+  if (!id) return;
+  state.deletedEvents[id] = new Date().toISOString();
+  saveDeletedEvents();
+}
+
+function loadDeletedEvents() {
+  try {
+    return JSON.parse(localStorage.getItem("smart-agenda-deleted-events") || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveDeletedEvents() {
+  localStorage.setItem("smart-agenda-deleted-events", JSON.stringify(state.deletedEvents));
 }
 
 async function registerServiceWorker() {
